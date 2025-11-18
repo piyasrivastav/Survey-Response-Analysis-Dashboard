@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Survey Response Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container" id="appContainer">
+    <header>
+      <h1>Survey Response Analysis Dashboard</h1>
+      <p class="subtitle">Effect of Spiritual and Cultural Communication on Youths - Varanasi Study</p>
+      <div class="header-controls">
+        <label class="switch">
+          <input type="checkbox" id="darkModeToggle">
+          <span class="slider"></span>
+        </label>
+        <span class="dark-label">Dark Mode</span>
+      </div>
+    </header>
+
+    <div class="controls-section">
+      <div class="control-group">
+        <label for="questionSelect">Select Question:</label>
+        <select id="questionSelect">
+          <option value="overall">Overall Summary</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label for="viewType">View Type:</label>
+        <select id="viewType">
+          <option value="bar">Bar Chart</option>
+          <option value="line">Line Chart</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label>&nbsp;</label>
+        <div class="buttons-row">
+          <button id="downloadChart" class="download-btn">Download Image</button>
+          <button id="downloadPdf" class="download-btn alt">Download PDF Report</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-cards">
+      <div class="stat-card">
+        <div class="stat-label">Total Questions</div>
+        <div class="stat-value" id="totalQuestions">100</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Responses (approx)</div>
+        <div class="stat-value" id="totalResponses">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Age Groups</div>
+        <div class="stat-value">4</div>
+      </div>
+    </div>
+
+    <div class="chart-section">
+      <div class="chart-left">
+        <canvas id="responseChart"></canvas>
+      </div>
+      <div class="chart-right">
+        <h3>Current Question Details</h3>
+        <div id="questionText" class="question-box"></div>
+
+        <div id="overallPercentBox" class="overall-percent-box" aria-hidden="true"></div>
+      </div>
+    </div>
+
+    <div class="data-table-container">
+      <h3>Response Data</h3>
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th>Age Group</th>
+            <th>Option</th>
+            <th>Response Count</th>
+            <th>Percentage</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Chart Data Labels -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <!-- html2canvas and jsPDF (for PDF export) -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+  <!-- Survey data (your file) -->
+  <script src="surveyData.js"></script>
+  <!-- Main Script -->
+  <script src="script.js"></script>
+</body>
+</html>
