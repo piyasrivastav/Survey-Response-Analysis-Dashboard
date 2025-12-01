@@ -679,12 +679,24 @@ function updateChart(labels, datasets, isOverall) {
           }
         }
       },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { precision:0 }
+scales: {
+    x: {
+        title: {
+            display: true,
+            text: "X-Axis: Response Options (i, ii, iii, iv, v)",
+            font: { size: 14, weight: "bold" }
         }
-      }
+    },
+    y: {
+        beginAtZero: true,
+        title: {
+            display: true,
+            text: "Y-Axis: Percentage of Responses",
+            font: { size: 14, weight: "bold" }
+        },
+        ticks: { precision: 0 }
+    }
+    }
     }
   });
 }
@@ -905,3 +917,4 @@ function init() {
   loadOverallChart();
 }
 init();
+
