@@ -679,7 +679,7 @@ function updateChart(labels, datasets, isOverall) {
           }
         }
       },
-scales: {
+      scales: {
     x: {
         title: {
             display: true,
@@ -917,4 +917,3 @@ function init() {
   loadOverallChart();
 }
 init();
-
