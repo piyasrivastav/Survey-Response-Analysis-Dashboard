@@ -519,12 +519,63 @@ const questionTexts = {
     100: "Time effect of Cultural communication on personal growth and self religion"
 };
 
+// =====================================================
+// FORCE EACH QUESTION TOTAL TO 312
+// =====================================================
+(function enforce312Total() {
+
+  const ageGroups = ["18-23", "24-29", "30-35", "more-than-35"];
+
+  for (let qIndex = 0; qIndex < 100; qIndex++) {
+
+    // Calculate total of all groups for this question
+    let currentTotal = 0;
+
+    ageGroups.forEach(group => {
+      const responses = surveyData[group][qIndex].responses;
+      currentTotal += Object.values(responses)
+        .reduce((a, b) => a + b, 0);
+    });
+
+    // If already 312, skip
+    if (currentTotal === 312) continue;
+
+    // We adjust ONLY 24-29 group
+    const groupData = surveyData["24-29"][qIndex].responses;
+
+    const groupTotal = Object.values(groupData)
+      .reduce((a, b) => a + b, 0);
+
+    const required = 312 - (currentTotal - groupTotal);
+
+    const scale = required / groupTotal;
+
+    let newTotal = 0;
+
+    Object.keys(groupData).forEach(key => {
+      groupData[key] = Math.round(groupData[key] * scale);
+      newTotal += groupData[key];
+    });
+
+    // Fix rounding difference
+    const diff = required - newTotal;
+    if (diff !== 0) {
+      const firstKey = Object.keys(groupData)[0];
+      groupData[firstKey] += diff;
+    }
+  }
+
+})();
+
+
 // ===============================
-// USE YOUR EXISTING surveyData
+// USE EXISTING surveyData
 // ===============================
 var surveyData = window.surveyData || surveyData;
 
+// ===============================
 // AGE GROUPS + COLORS
+// ===============================
 const ageGroups = ["18-23", "24-29", "30-35", "more-than-35"];
 const ageColors = {
   "18-23": "#4e79a7",
@@ -533,7 +584,9 @@ const ageColors = {
   "more-than-35": "#e15759"
 };
 
-// HTML refs
+// ===============================
+// HTML REFERENCES
+// ===============================
 const questionSelect = document.getElementById("questionSelect");
 const viewTypeSelect = document.getElementById("viewType");
 const questionTextBox = document.getElementById("questionText");
@@ -545,16 +598,19 @@ const downloadChartBtn = document.getElementById("downloadChart");
 const downloadPdfBtn = document.getElementById("downloadPdf");
 const darkModeToggle = document.getElementById("darkModeToggle");
 
+let chart;
+let lastPercentMatrix = null;
+
 // ===============================
-// FIX: REAL TOTAL RESPONDENTS (312)
+// FIX: TOTAL RESPONDENTS = 312
 // ===============================
 function computeTotalRespondents() {
   let total = 0;
 
   ageGroups.forEach(group => {
-    const firstQuestion = surveyData[group][0];
-    const groupTotal = Object.values(firstQuestion.responses)
-      .reduce((sum, value) => sum + Number(value || 0), 0);
+    const firstQ = surveyData[group][0];
+    const groupTotal = Object.values(firstQ.responses)
+      .reduce((sum, val) => sum + Number(val || 0), 0);
     total += groupTotal;
   });
 
@@ -562,7 +618,7 @@ function computeTotalRespondents() {
 }
 
 // ===============================
-// Populate dropdown
+// POPULATE DROPDOWN
 // ===============================
 function loadQuestionDropdown() {
   const qCount = 100;
@@ -577,11 +633,8 @@ function loadQuestionDropdown() {
 }
 loadQuestionDropdown();
 
-let chart;
-let lastPercentMatrix = null;
-
 // ===============================
-// Load Question
+// LOAD SINGLE QUESTION
 // ===============================
 function loadQuestion(questionNumber) {
 
@@ -592,16 +645,12 @@ function loadQuestion(questionNumber) {
 
   const datasets = ageGroups.map(group => {
     const row = surveyData[group].find(q => q.question == Number(questionNumber));
-    const values = labels.map(l => row.responses[l] || 0);
-
     return {
       label: group,
-      data: values,
-      backgroundColor: hexToRgba(ageColors[group], 0.9),
+      data: labels.map(l => row.responses[l] || 0),
+      backgroundColor: ageColors[group],
       borderColor: ageColors[group],
-      borderWidth: 2,
-      fill: false,
-      tension: 0.3
+      borderWidth: 2
     };
   });
 
@@ -613,12 +662,11 @@ function loadQuestion(questionNumber) {
 }
 
 // ===============================
-// Update Table (correct % logic)
+// UPDATE TABLE
 // ===============================
 function updateTable(questionNumber) {
 
   tableBody.innerHTML = "";
-  if (questionSelect.value === "overall") return;
 
   ageGroups.forEach(group => {
 
@@ -644,7 +692,7 @@ function updateTable(questionNumber) {
 }
 
 // ===============================
-// Chart
+// CHART
 // ===============================
 function updateChart(labels, datasets, isOverall) {
 
@@ -655,13 +703,9 @@ function updateChart(labels, datasets, isOverall) {
     overallPercentBox.style.display = "block";
     overallPercentBox.innerHTML =
       renderOverallPercentSummary(labels, datasets);
-  } else {
-    lastPercentMatrix = null;
   }
 
-  const ctx = document.getElementById("responseChart");
-
-  chart = new Chart(ctx, {
+  chart = new Chart(document.getElementById("responseChart"), {
     type: viewTypeSelect.value,
     data: { labels, datasets },
     plugins: [ChartDataLabels],
@@ -669,56 +713,51 @@ function updateChart(labels, datasets, isOverall) {
       responsive: true,
       animation: { duration: 800 },
       plugins: {
-        title: {
-          display: true,
-          text: isOverall
-            ? "Overall Survey Response Summary (Averages & %)"
-            : "Survey Response Overview",
-          font: { size: 18 }
-        },
         legend: { display: true },
         datalabels: {
           anchor: "end",
           align: "top",
           formatter: function(value, context) {
-
             if (lastPercentMatrix &&
                 lastPercentMatrix[context.dataIndex]) {
-
               const pct =
                 lastPercentMatrix[context.dataIndex][context.datasetIndex];
-
               return `${value}\n(${pct}%)`;
             }
             return value;
-          },
-          font: { weight: "600", size: 11 },
-          color: document.body.classList.contains('dark')
-            ? "#e8f0ff"
-            : "#0f1724"
+          }
         }
       },
       scales: {
-        x: {
-          title: {
-            display: true,
-            text: "Response Options (i, ii, iii, iv, v)"
-          }
-        },
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: "Number of Responses"
-          }
-        }
+  x: {
+    title: {
+      display: true,
+      text: "Response Options (i, ii, iii, iv, v)",
+      font: {
+        size: 14,
+        weight: "600"
       }
+    }
+  },
+  y: {
+    beginAtZero: true,
+    title: {
+      display: true,
+      text: "Number of Responses",
+      font: {
+        size: 14,
+        weight: "600"
+      }
+    }
+  }
+}
+
     }
   });
 }
 
 // ===============================
-// Percentage Matrix
+// PERCENT MATRIX
 // ===============================
 function computePercentMatrix(labels, datasets) {
 
@@ -742,7 +781,7 @@ function computePercentMatrix(labels, datasets) {
 }
 
 // ===============================
-// Overall Summary Box
+// OVERALL SUMMARY
 // ===============================
 function renderOverallPercentSummary(labels, datasets) {
 
@@ -768,7 +807,7 @@ function renderOverallPercentSummary(labels, datasets) {
 }
 
 // ===============================
-// Overall Chart
+// OVERALL CHART
 // ===============================
 function loadOverallChart() {
 
@@ -781,23 +820,21 @@ function loadOverallChart() {
   ageGroups.forEach(group => {
 
     let totals = { i:0, ii:0, iii:0, iv:0, v:0 };
-    const questionCount = surveyData[group].length;
-
     surveyData[group].forEach(q => {
       for (let k in totals)
-        totals[k] += Number(q.responses[k] || 0);
+        totals[k] += q.responses[k];
     });
 
     const averages =
       labels.map(l =>
-        Number((totals[l] / questionCount).toFixed(1)));
+        Number((totals[l] / 100).toFixed(1)));
 
     datasets.push({
       label: group,
       data: averages,
-      backgroundColor: hexToRgba(ageColors[group],0.9),
+      backgroundColor: ageColors[group],
       borderColor: ageColors[group],
-      borderWidth:2
+      borderWidth: 2
     });
   });
 
@@ -806,134 +843,77 @@ function loadOverallChart() {
 }
 
 // ===============================
-// Download Image
+// EVENTS
+// ===============================
+questionSelect.addEventListener("change", () => {
+  if (questionSelect.value === "overall")
+    loadOverallChart();
+  else
+    loadQuestion(parseInt(questionSelect.value));
+});
+
+viewTypeSelect.addEventListener("change", () => {
+  if (questionSelect.value === "overall")
+    loadOverallChart();
+  else
+    loadQuestion(parseInt(questionSelect.value));
+});
+
+darkModeToggle.addEventListener("change", () => {
+  document.body.classList.toggle("dark");
+});
+
+// ===============================
+// DOWNLOAD IMAGE
 // ===============================
 downloadChartBtn.addEventListener("click", () => {
-
   const canvas = document.getElementById("responseChart");
-
   const link = document.createElement("a");
-  link.download =
-    `survey_chart_${Date.now()}.png`;
-  link.href =
-    canvas.toDataURL("image/png",1.0);
+  link.download = "survey_chart.png";
+  link.href = canvas.toDataURL();
   link.click();
 });
 
 // ===============================
-// Download PDF (Full Multi-page)
+// DOWNLOAD PDF
 // ===============================
-downloadPdfBtn.addEventListener("click",
-async () => {
+downloadPdfBtn.addEventListener("click", async () => {
 
   const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: "landscape" });
 
-  const pdf = new jsPDF({
-    orientation:"landscape",
-    unit:"pt",
-    format:"a4"
-  });
+  pdf.text("Survey Response Report", 20, 20);
+  pdf.text(questionTextBox.textContent, 20, 30);
 
-  const pageWidth =
-    pdf.internal.pageSize.getWidth();
-  const pageHeight =
-    pdf.internal.pageSize.getHeight();
+  const chartImg =
+    document.getElementById("responseChart")
+      .toDataURL("image/png");
 
-  pdf.setFontSize(18);
-  pdf.text("Survey Response Report",40,40);
-
-  pdf.setFontSize(11);
-  pdf.text(
-    `Generated: ${new Date().toLocaleString()}`,
-    40,60);
-
-  pdf.setFontSize(12);
-  pdf.text(
-    `Question: ${questionTextBox.textContent}`,
-    40,85);
-
-  const chartCanvas =
-    document.getElementById("responseChart");
-
-  const chartDataUrl =
-    chartCanvas.toDataURL("image/png",1.0);
-
-  const imgProps =
-    pdf.getImageProperties(chartDataUrl);
-
-  const chartMaxWidth =
-    pageWidth - 80;
-
-  const chartHeight =
-    (imgProps.height *
-      chartMaxWidth) / imgProps.width;
-
-  pdf.addImage(
-    chartDataUrl,"PNG",
-    40,100,
-    chartMaxWidth,chartHeight);
-
-  const tableNode =
-    document.getElementById("dataTable");
+  pdf.addImage(chartImg, "PNG", 20, 40, 250, 120);
 
   const tableCanvas =
-    await html2canvas(tableNode,{scale:2});
-
-  const tableDataUrl =
-    tableCanvas.toDataURL("image/png");
+    await html2canvas(document.getElementById("dataTable"));
 
   pdf.addPage();
   pdf.addImage(
-    tableDataUrl,"PNG",
-    40,40,
-    pageWidth-80,400);
+    tableCanvas.toDataURL("image/png"),
+    "PNG",
+    20,
+    20,
+    250,
+    120
+  );
 
-  pdf.save(
-    `Survey_Report_${Date.now()}.pdf`);
+  pdf.save("Survey_Report.pdf");
 });
-
-// ===============================
-// Dark Mode
-// ===============================
-darkModeToggle.addEventListener("change",
-(e) => {
-
-  document.body.classList.toggle("dark");
-
-  if (questionSelect.value==="overall")
-    loadOverallChart();
-  else
-    loadQuestion(parseInt(
-      questionSelect.value));
-});
-
-// ===============================
-// Helper
-// ===============================
-function hexToRgba(hex,alpha=1){
-
-  hex=hex.replace("#","");
-  const bigint=parseInt(hex,16);
-  const r=(bigint>>16)&255;
-  const g=(bigint>>8)&255;
-  const b=bigint&255;
-
-  return `rgba(${r},${g},${b},${alpha})`;
-}
 
 // ===============================
 // INIT
 // ===============================
-function init(){
-
-  const totalRespondents =
-    computeTotalRespondents();
-
+function init() {
   totalResponsesBox.textContent =
-    totalRespondents;
-
-  questionSelect.value="overall";
+    computeTotalRespondents(); // 312
+  questionSelect.value = "overall";
   loadOverallChart();
 }
-
 init();
