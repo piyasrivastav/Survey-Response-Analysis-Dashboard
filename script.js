@@ -522,10 +522,6 @@ const questionTexts = {
 // ===============================
 // USE YOUR EXISTING surveyData
 // ===============================
-
-// -------------------------------
-// Use your existing surveyData (loaded via surveyData.js)
-// -------------------------------
 var surveyData = window.surveyData || surveyData;
 
 // AGE GROUPS + COLORS
@@ -548,13 +544,30 @@ const overallPercentBox = document.getElementById("overallPercentBox");
 const downloadChartBtn = document.getElementById("downloadChart");
 const downloadPdfBtn = document.getElementById("downloadPdf");
 const darkModeToggle = document.getElementById("darkModeToggle");
-const appContainer = document.getElementById("appContainer");
 
-// Populate question dropdown
+// ===============================
+// FIXED TOTAL RESPONDENT COUNT
+// ===============================
+function computeTotalRespondents() {
+  let total = 0;
+
+  ageGroups.forEach(group => {
+    const firstQuestion = surveyData[group][0];
+    const groupTotal = Object.values(firstQuestion.responses)
+      .reduce((sum, value) => sum + Number(value || 0), 0);
+    total += groupTotal;
+  });
+
+  return total;
+}
+
+// ===============================
+// Populate Question Dropdown
+// ===============================
 function loadQuestionDropdown() {
   const qCount = 100;
   totalQuestions.textContent = qCount;
-  // keep initial Overall option in HTML; add questions
+
   for (let i = 1; i <= qCount; i++) {
     const op = document.createElement("option");
     op.value = i;
@@ -564,18 +577,23 @@ function loadQuestionDropdown() {
 }
 loadQuestionDropdown();
 
-// Chart instance & helper
+// ===============================
 let chart;
-let lastPercentMatrix = null; // hold percentages for datalabels when overall selected
+let lastPercentMatrix = null;
 
-// Load a single question
+// ===============================
+// Load Single Question
+// ===============================
 function loadQuestion(questionNumber) {
-  questionTextBox.textContent = `Detailed visual response analysis for Question ${questionNumber}`;
+  questionTextBox.textContent =
+    `Q${questionNumber}: ${questionTexts[questionNumber] || ""}`;
 
   const labels = ["i", "ii", "iii", "iv", "v"];
+
   const datasets = ageGroups.map(group => {
     const row = surveyData[group].find(q => q.question == Number(questionNumber));
     const values = labels.map(l => row.responses[l] || 0);
+
     return {
       label: group,
       data: values,
@@ -587,7 +605,6 @@ function loadQuestion(questionNumber) {
     };
   });
 
-  // hide overall percent box
   overallPercentBox.style.display = "none";
   lastPercentMatrix = null;
 
@@ -595,324 +612,166 @@ function loadQuestion(questionNumber) {
   updateTable(questionNumber);
 }
 
-// Update table for a question
+// ===============================
+// Update Table (Fixed % Logic)
+// ===============================
 function updateTable(questionNumber) {
   tableBody.innerHTML = "";
   if (questionSelect.value === "overall") return;
 
   ageGroups.forEach(group => {
     const row = surveyData[group].find(q => q.question == Number(questionNumber));
+    const total = Object.values(row.responses)
+      .reduce((a, b) => a + b, 0);
+
     Object.keys(row.responses).forEach(option => {
       const count = row.responses[option];
+      const percent = ((count / total) * 100).toFixed(1);
+
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${group}</td>
         <td>${option}</td>
         <td>${count}</td>
-        <td>${((count / 100) * 100).toFixed(1)}%</td>
+        <td>${percent}%</td>
       `;
       tableBody.appendChild(tr);
     });
   });
 }
 
-// Create / update chart
+// ===============================
+// Chart Rendering
+// ===============================
 function updateChart(labels, datasets, isOverall) {
   if (chart) chart.destroy();
 
-  // If overall, compute percentage matrix per label across datasets (used in datalabels)
-  if (isOverall) {
-    lastPercentMatrix = computePercentMatrix(labels, datasets);
-    overallPercentBox.style.display = "block";
-    overallPercentBox.innerHTML = renderOverallPercentSummary(labels, datasets);
-  } else {
-    lastPercentMatrix = null;
-  }
-
   const ctx = document.getElementById("responseChart");
+
   chart = new Chart(ctx, {
     type: viewTypeSelect.value,
     data: { labels, datasets },
     plugins: [ChartDataLabels],
     options: {
       responsive: true,
-      animation: {
-        duration: 800,
-        easing: 'easeOutCubic'
-      },
       plugins: {
         title: {
           display: true,
-          text: isOverall ? "Overall Survey Response Summary (Averages & %)" : "Survey Response Overview",
+          text: isOverall
+            ? "Overall Survey Response Summary"
+            : "Survey Response Overview",
           font: { size: 18 }
         },
         legend: { display: true },
         datalabels: {
           anchor: "end",
           align: "top",
-          formatter: function(value, context) {
-            // value is numeric (average or count)
-            if (lastPercentMatrix && lastPercentMatrix[context.dataIndex]) {
-              // show "value (xx%)"
-              const pct = lastPercentMatrix[context.dataIndex][context.datasetIndex];
-              return `${value}\n(${pct}%)`;
-            }
-            return `${value}`;
-          },
-          font: { weight: "600", size: 11 },
-          color: function(context) {
-            // ensure contrast with dark mode
-            return document.body.classList.contains('dark') ? '#e8f0ff' : '#0f1724';
-          }
-        },
-        tooltip: {
-          callbacks: {
-            label: function(ctx) {
-              let label = ctx.dataset.label || "";
-              if (label) label += ": ";
-              label += ctx.raw;
-              if (lastPercentMatrix && lastPercentMatrix[ctx.dataIndex]) {
-                label += ` (${ lastPercentMatrix[ctx.dataIndex][ctx.datasetIndex] }%)`;
-              }
-              return label;
-            }
-          }
+          formatter: value => value
         }
       },
       scales: {
-    x: {
-        title: {
+        x: {
+          title: {
             display: true,
-            text: "X-Axis: Response Options (i, ii, iii, iv, v)",
-            font: { size: 14, weight: "bold" }
-        }
-    },
-    y: {
-        beginAtZero: true,
-        title: {
-            display: true,
-            text: "Y-Axis: Percentage of Responses",
-            font: { size: 14, weight: "bold" }
+            text: "Response Options (i, ii, iii, iv, v)"
+          }
         },
-        ticks: { precision: 0 }
-    }
-    }
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: "Number of Responses"
+          }
+        }
+      }
     }
   });
 }
 
-// Compute percent matrix: for each label (index), compute sum across datasets and determine each dataset's percent
-function computePercentMatrix(labels, datasets) {
-  // matrix: [labelIndex][datasetIndex] => percent (rounded)
-  const matrix = [];
-  labels.forEach((lbl, li) => {
-    let sum = 0;
-    datasets.forEach(ds => { sum += Number(ds.data[li]) || 0; });
-    const row = datasets.map(ds => {
-      const val = Number(ds.data[li]) || 0;
-      return sum === 0 ? 0 : Math.round((val / sum) * 100);
-    });
-    matrix.push(row);
-  });
-  return matrix;
-}
-
-// Render small summary box for overall percentages (per option, sums across age groups)
-function renderOverallPercentSummary(labels, datasets) {
-  // For each label, compute total across datasets and percent of grand total
-  const labelTotals = labels.map((lbl, i) => datasets.reduce((s, ds) => s + Number(ds.data[i] || 0), 0));
-  const grandTotal = labelTotals.reduce((s, v) => s + v, 0) || 1;
-  const rows = labels.map((lbl, i) => {
-    const val = labelTotals[i];
-    const pct = Math.round((val / grandTotal) * 100);
-    return `<div class="op-row"><strong>${lbl.toUpperCase()}</strong>: ${val} ( ${pct}% )</div>`;
-  });
-  return `<strong>Overall (options combined across age groups)</strong><div style="margin-top:8px">${rows.join('')}</div>`;
-}
-
-// OVERALL summary (averages)
+// ===============================
+// Overall Summary
+// ===============================
 function loadOverallChart() {
-  questionTextBox.textContent = "Overall Response Summary (Average Across All Questions)";
+  questionTextBox.textContent =
+    "Overall Response Summary (Average Across All Questions)";
 
   const labels = ["i", "ii", "iii", "iv", "v"];
   const datasets = [];
 
   ageGroups.forEach(group => {
     let totals = { i: 0, ii: 0, iii: 0, iv: 0, v: 0 };
-    const questionCount = surveyData[group].length || 1;
+    const questionCount = surveyData[group].length;
+
     surveyData[group].forEach(q => {
-      for (let k in totals) totals[k] += Number(q.responses[k] || 0);
+      for (let k in totals) {
+        totals[k] += Number(q.responses[k] || 0);
+      }
     });
-    // convert to average (one decimal)
-    const averages = labels.map(l => Number((totals[l] / questionCount).toFixed(1)));
+
+    const averages = labels.map(l =>
+      Number((totals[l] / questionCount).toFixed(1))
+    );
+
     datasets.push({
       label: group,
       data: averages,
       backgroundColor: hexToRgba(ageColors[group], 0.9),
       borderColor: ageColors[group],
-      borderWidth: 2,
-      fill: false,
-      tension: 0.3
+      borderWidth: 2
     });
   });
 
-  // show overall percent box
-  overallPercentBox.style.display = "block";
   updateChart(labels, datasets, true);
-
-  // empty table for overall
   tableBody.innerHTML = "";
-  // update approximate total responses box for display (sum of averages * questions ~ approx)
-  const approxTotal = datasets.reduce((s, ds) => {
-    return s + ds.data.reduce((a, b) => a + Number(b || 0), 0);
-  }, 0);
-  totalResponsesBox.textContent = Math.round(approxTotal);
 }
 
-// hex color to rgba helper
-function hexToRgba(hex, alpha=1) {
-  hex = hex.replace('#','');
-  if (hex.length===3) hex = hex.split('').map(h=> h+h).join('');
-  const bigint = parseInt(hex,16);
+// ===============================
+// Color Helper
+// ===============================
+function hexToRgba(hex, alpha = 1) {
+  hex = hex.replace("#", "");
+  const bigint = parseInt(hex, 16);
   const r = (bigint >> 16) & 255;
   const g = (bigint >> 8) & 255;
   const b = bigint & 255;
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-// --------------------
-// Event listeners
-// --------------------
-questionSelect.addEventListener('change', () => {
-  if (questionSelect.value === "overall") loadOverallChart();
-  else loadQuestion(parseInt(questionSelect.value));
-});
-
-viewTypeSelect.addEventListener('change', () => {
-  // redraw current view (keeps overall if selected)
-  if (questionSelect.value === "overall") loadOverallChart();
-  else loadQuestion(parseInt(questionSelect.value));
-});
-
-// Download chart image
-downloadChartBtn.addEventListener('click', () => {
-  const canvas = document.getElementById('responseChart');
-  const link = document.createElement('a');
-  link.download = `survey_chart_${Date.now()}.png`;
-  link.href = canvas.toDataURL('image/png', 1.0);
-  link.click();
-});
-
-// Download full PDF report (Option A: full professional report)
-downloadPdfBtn.addEventListener('click', async () => {
-  // Use html2canvas to capture chart area and table
-  const { jsPDF } = window.jspdf;
-
-  // capture chart (canvas) first
-  const chartCanvas = document.getElementById('responseChart');
-  // clone the chartCanvas to preserve current chart and ensure same resolution
-  const chartDataUrl = chartCanvas.toDataURL('image/png', 1.0);
-
-  // capture table container and question box
-  const questionNode = document.getElementById('questionText');
-  const tableNode = document.getElementById('dataTable');
-
-  // create PDF
-  const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-
-  // Add title
-  pdf.setFontSize(18);
-  pdf.text("Survey Response Report", 40, 40);
-  pdf.setFontSize(11);
-  pdf.text(`Generated: ${new Date().toLocaleString()}`, 40, 60);
-
-  // Add question text
-  const qText = questionTextBox.textContent || '';
-  pdf.setFontSize(12);
-  pdf.text(`Question: ${qText}`, 40, 85);
-
-  // Add chart image below title
-  const imgProps = pdf.getImageProperties(chartDataUrl);
-  // fit chart width to page minus margins
-  const chartMaxWidth = pageWidth - 80;
-  // calculate height preserving aspect ratio
-  const chartHeight = (imgProps.height * chartMaxWidth) / imgProps.width;
-  pdf.addImage(chartDataUrl, 'PNG', 40, 100, chartMaxWidth, chartHeight);
-
-  // Capture table DOM to image using html2canvas and add to PDF (may be multi-page)
-  const tableCanvas = await html2canvas(tableNode, { scale: 2, backgroundColor: document.body.classList.contains('dark') ? '#0b1220' : '#ffffff' });
-  const tableDataUrl = tableCanvas.toDataURL('image/png');
-
-  // If table image height fits remaining page, place; otherwise add new page(s)
-  let yPos = 100 + chartHeight + 20;
-  const availableHeight = pageHeight - yPos - 40;
-
-  const tableImgProps = pdf.getImageProperties(tableDataUrl);
-  const tableImgWidth = pageWidth - 80;
-  const tableImgHeight = (tableImgProps.height * tableImgWidth) / tableImgProps.width;
-
-  if (tableImgHeight <= availableHeight) {
-    pdf.addImage(tableDataUrl, 'PNG', 40, yPos, tableImgWidth, tableImgHeight);
+// ===============================
+// Event Listeners
+// ===============================
+questionSelect.addEventListener("change", () => {
+  if (questionSelect.value === "overall") {
+    loadOverallChart();
   } else {
-    // scale to page and add multiple pages if needed
-    // split the canvas vertically
-    const totalHeight = tableCanvas.height;
-    const pxPerPt = tableCanvas.width / tableImgWidth; // pixels per pdf point
-    let renderedHeight = 0;
-    while (renderedHeight < totalHeight) {
-      const sectionHeightPx = Math.min(totalHeight - renderedHeight, Math.round(availableHeight * pxPerPt));
-      // create temp canvas
-      const tmp = document.createElement('canvas');
-      tmp.width = tableCanvas.width;
-      tmp.height = sectionHeightPx;
-      const ctx = tmp.getContext('2d');
-      ctx.drawImage(tableCanvas, 0, renderedHeight, tableCanvas.width, sectionHeightPx, 0, 0, tmp.width, tmp.height);
-      const dataUrl = tmp.toDataURL('image/png');
-      if (renderedHeight === 0) {
-        pdf.addImage(dataUrl, 'PNG', 40, yPos, tableImgWidth, (sectionHeightPx / pxPerPt));
-      } else {
-        pdf.addPage();
-        pdf.addImage(dataUrl, 'PNG', 40, 40, tableImgWidth, (sectionHeightPx / pxPerPt));
-      }
-      renderedHeight += sectionHeightPx;
-    }
+    loadQuestion(parseInt(questionSelect.value));
   }
-
-  // Save PDF
-  pdf.save(`Survey_Report_${Date.now()}.pdf`);
 });
 
-// Dark mode toggle
-darkModeToggle.addEventListener('change', (e) => {
-  if (e.target.checked) {
-    document.body.classList.add('dark');
+viewTypeSelect.addEventListener("change", () => {
+  if (questionSelect.value === "overall") {
+    loadOverallChart();
   } else {
-    document.body.classList.remove('dark');
+    loadQuestion(parseInt(questionSelect.value));
   }
-  // re-render chart so datalabel colors / background match theme
-  if (questionSelect.value === "overall") loadOverallChart();
-  else loadQuestion(questionSelect.value);
 });
 
-// Utility: compute approximate total responses (for stat)
-function computeApproxTotalResponses() {
-  // sum of absolute values of all responses across all groups and questions (rough)
-  let total = 0;
-  ageGroups.forEach(g => {
-    surveyData[g].forEach(q => {
-      Object.values(q.responses).forEach(v => total += Number(v || 0));
-    });
-  });
-  return total;
-}
+darkModeToggle.addEventListener("change", () => {
+  document.body.classList.toggle("dark");
 
-// Helper: force initial load to overall
+  if (questionSelect.value === "overall") {
+    loadOverallChart();
+  } else {
+    loadQuestion(parseInt(questionSelect.value));
+  }
+});
+
+// ===============================
+// INIT
+// ===============================
 function init() {
-  // set totalResponses (approx)
-  const approx = computeApproxTotalResponses();
-  if (totalResponsesBox) totalResponsesBox.textContent = approx;
+  const totalRespondents = computeTotalRespondents();
+  totalResponsesBox.textContent = totalRespondents;
   questionSelect.value = "overall";
   loadOverallChart();
 }
